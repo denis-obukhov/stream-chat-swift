@@ -831,6 +831,32 @@ final class ChannelDTO_Tests: XCTestCase {
         let channel: ChannelDTO? = database.viewContext.channel(cid: channelId)
         XCTAssertEqual(channel?.oldestMessageAt?.bridgeDate, oldMessageCreatedAt)
     }
+
+    func test_channelPayload_singleNewerMessageDoesNotHideOlderMessagesWhenWindowIsUnset() throws {
+        let channelId: ChannelId = .unique
+        let olderCreatedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let history = (0..<5).map { offset in
+            MessagePayload.dummy(
+                messageId: "history-\(offset)",
+                createdAt: olderCreatedAt.addingTimeInterval(TimeInterval(offset))
+            )
+        }
+        try database.writeSynchronously { session in
+            let dto = try session.saveChannel(payload: self.dummyPayload(with: channelId, messages: history))
+            dto.oldestMessageAt = nil
+        }
+
+        let preview = dummyPayload(with: channelId, messages: [
+            .dummy(messageId: "preview", createdAt: olderCreatedAt.addingTimeInterval(60))
+        ])
+        try database.writeSynchronously { session in
+            try session.saveChannel(payload: preview)
+        }
+
+        let channel = try XCTUnwrap(database.viewContext.channel(cid: channelId))
+        XCTAssertNil(channel.oldestMessageAt)
+        XCTAssertEqual(channel.messages.count, history.count + 1)
+    }
     
     func test_channelPayload_truncatedMessagesAreIgnored() throws {
         try XCTSkipIf(

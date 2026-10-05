@@ -71,8 +71,16 @@ class ChannelUpdater: Worker, @unchecked Sendable {
                     // for providing member data.
                     let memberListQuery = ChannelMemberListQuery(cid: payload.channel.cid, sort: actions?.updateMemberList ?? [])
 
+                    // A one-message response must not replace a cached history. The channel list
+                    // fetches `message_limit: 1`, and treating that preview as the first page
+                    // deletes every other message and hides them behind `oldestMessageAt`.
+                    var keepExistingHistory = false
                     if let channelDTO = session.channel(cid: payload.channel.cid) {
-                        if resetMessages {
+                        let existingMessageCount = channelDTO.messages.filter { !$0.isLocalOnly }.count
+                        keepExistingHistory = resetMessages
+                            && payload.messages.count <= 1
+                            && existingMessageCount > payload.messages.count
+                        if resetMessages, !keepExistingHistory {
                             channelDTO.cleanAllMessagesExcludingLocalOnly()
                         }
                         if resetMembersAndReads {
@@ -88,8 +96,10 @@ class ChannelUpdater: Worker, @unchecked Sendable {
                     }
 
                     let updatedChannel = try session.saveChannel(payload: payload)
-                    updatedChannel.oldestMessageAt = self.paginationState.oldestMessageAt?.bridgeDate
-                    updatedChannel.newestMessageAt = self.paginationState.newestMessageAt?.bridgeDate
+                    if !keepExistingHistory {
+                        updatedChannel.oldestMessageAt = self.paginationState.oldestMessageAt?.bridgeDate
+                        updatedChannel.newestMessageAt = self.paginationState.newestMessageAt?.bridgeDate
+                    }
 
                     // Share member data with member list query without any filters (requres ChannelDTO to be saved first)
                     let memberListQueryDTO: ChannelMemberListQueryDTO = try {

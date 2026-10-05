@@ -768,6 +768,41 @@ final class ChannelUpdater_Tests: XCTestCase {
         }
     }
 
+    func test_updateChannelQuery_singleMessageResponse_keepsExistingHistory() throws {
+        let cid = ChannelId(type: .messaging, id: .unique)
+        let olderCreatedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let history = (0..<5).map { offset in
+            MessagePayload.dummy(
+                messageId: "history-\(offset)",
+                createdAt: olderCreatedAt.addingTimeInterval(TimeInterval(offset))
+            )
+        }
+        try database.writeSynchronously { session in
+            let dto = try session.saveChannel(payload: self.dummyPayload(with: cid, messages: history))
+            dto.oldestMessageAt = olderCreatedAt.bridgeDate
+            dto.newestMessageAt = nil
+        }
+
+        let previewCreatedAt = olderCreatedAt.addingTimeInterval(60)
+        paginationStateHandler.mockState.oldestFetchedMessage = .dummy(messageId: "preview", createdAt: previewCreatedAt)
+        paginationStateHandler.mockState.newestFetchedMessage = nil
+
+        let expectation = expectation(description: "Update completes")
+        channelUpdater.update(channelQuery: ChannelQuery(cid: cid), isInRecoveryMode: false, completion: { _ in
+            expectation.fulfill()
+        })
+        waitUntilChannelUpdateRequestIsSent()
+        apiClient.test_simulateResponse(.success(dummyPayload(
+            with: cid,
+            messages: [.dummy(messageId: "preview", createdAt: previewCreatedAt)]
+        )))
+        waitForExpectations(timeout: defaultTimeout)
+
+        let channel = try XCTUnwrap(database.viewContext.channel(cid: cid))
+        XCTAssertEqual(channel.messages.count, history.count + 1)
+        XCTAssertEqual(channel.oldestMessageAt?.bridgeDate, olderCreatedAt)
+    }
+
     func test_updateChannelQuery_whenChannelHasNoStaleMidPageState_keepsLocalCache() throws {
         let cid = ChannelId(type: .messaging, id: .unique)
         try database.writeSynchronously { session in

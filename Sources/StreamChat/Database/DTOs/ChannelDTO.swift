@@ -754,8 +754,15 @@ extension ChannelDTO {
     /// Updates the `oldestMessageAt` of the channel. It should only update if the current `oldestMessageAt` is not older already.
     /// This property is useful to filter out older pinned/quoted messages that do not belong to the regular channel query,
     /// but are already in the database.
+    ///
+    /// A one-message payload is a preview (the channel list asks for `message_limit: 1`). Using it as the
+    /// window hides every older message already stored. Leave the existing window alone in that case.
     func updateOldestMessageAt(payload: ChannelPayload) {
         guard let payloadOldestMessageAt = payload.messages.map(\.createdAt).min() else { return }
+        if payload.messages.count <= 1,
+           messages.contains(where: { !$0.isLocalOnly && $0.createdAt.bridgeDate < payloadOldestMessageAt }) {
+            return
+        }
         let isOlderThanCurrentOldestMessage = payloadOldestMessageAt < (oldestMessageAt?.bridgeDate ?? Date.distantFuture)
         if isOlderThanCurrentOldestMessage {
             oldestMessageAt = payloadOldestMessageAt.bridgeDate
