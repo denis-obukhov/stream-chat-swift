@@ -3,6 +3,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 # Upcoming
 
+### 🔄 Changed
+
+# [5.12.1](https://github.com/GetStream/stream-chat-swift/releases/tag/5.12.1)
+_October 01, 2026_
+
 ### 🐞 Fixed
 - Fix the message list collapsing to the latest message when a channel response is newest-first
 - Fix a one-message channel preview replacing the cached history
