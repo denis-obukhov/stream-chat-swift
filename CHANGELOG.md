@@ -3,6 +3,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 # Upcoming
 
+### 🐞 Fixed
+- Process `StreamChatModel.xcdatamodeld` so the compiled Core Data model is bundled on Xcode 27
+
 ### 🔄 Changed
 
 # [4.97.0](https://github.com/GetStream/stream-chat-swift/releases/tag/4.97.0)
